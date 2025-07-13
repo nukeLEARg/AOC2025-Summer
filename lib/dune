@@ -1,0 +1,6 @@
+(library
+ (name advent)
+ (preprocess
+  (pps ppx_jane))
+ (libraries core re sexplib)
+ (modules Advent))

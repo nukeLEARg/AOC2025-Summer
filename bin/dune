@@ -1,0 +1,11 @@
+(executables
+ (public_names Runner DayTemplate)
+ (names Runner DayTemplate)
+ (preprocess
+  (pps ppx_jane))
+ (libraries advent core core_unix))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
