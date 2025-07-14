@@ -1,6 +1,6 @@
 (executables
- (public_names Runner DayTemplate)
- (names Runner DayTemplate)
+ (public_names Runner DayTemplate Day01)
+ (names Runner DayTemplate Day01)
  (preprocess
   (pps ppx_jane))
  (libraries advent core core_unix))
@@ -8,4 +8,4 @@
 (env
  (dev
   (flags
-   (:standard -warn-error -A))))
+   (:standard -warn-error -A -extension-universe beta))))

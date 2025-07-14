@@ -5,22 +5,19 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github nukeLEARg/AOC2025-Summer))
 
-(authors "Author Name <author@example.com>")
+(authors "Nuke <nukelearyt@gmail.com>")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Nuke <nukelearyt@gmail.com>")
 
 (license LICENSE)
 
-(documentation https://url/to/documentation)
-
 (package
  (name AOC2025-Summer)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "Summer Friends AOC 2019")
+ (description "Summer Friends AOC 2019")
  (depends ocaml dune)
- (tags
-  ("add topics" "to describe" your project)))
+ (tags ("advent of code")))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
