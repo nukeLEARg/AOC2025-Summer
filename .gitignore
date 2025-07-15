@@ -41,3 +41,6 @@ test.perf
 #outputs
 *.dot
 *.out*
+
+
+.vscode/
