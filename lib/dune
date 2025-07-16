@@ -4,3 +4,10 @@
   (pps ppx_jane))
  (libraries core re sexplib)
  (modules Advent))
+
+(library
+ (name intcode)
+ (preprocess
+  (pps ppx_jane))
+ (libraries core)
+ (modules Intcode))
