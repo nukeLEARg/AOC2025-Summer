@@ -176,7 +176,7 @@ module PosSet = Set.Make (PosComparator)
 let grid_lim grid = Array.length grid.(0), Array.length grid
 
 let repeat_helper_fi f (i : int) (increment : int) (count : int) =
-  let terminate = i +(increment*count)in
+  let terminate = i + (increment * count) in
   let rec aux i =
     if i > terminate
     then f i
@@ -186,3 +186,6 @@ let repeat_helper_fi f (i : int) (increment : int) (count : int) =
   in
   aux i
 ;;
+
+let add_tuples (a, b) (c, d) = a + c, b + d
+let man_dist (a, b) (c, d) = abs (a - c) + abs (b - d)

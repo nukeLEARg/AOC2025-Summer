@@ -11,3 +11,10 @@
   (pps ppx_jane))
  (libraries core)
  (modules Intcode))
+
+(library
+ (name iter)
+ (preprocess
+  (pps ppx_jane))
+ (libraries core)
+ (modules iter))
