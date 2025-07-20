@@ -7,8 +7,18 @@
   Day02_18
   Day03_18
   Day02
-  Day03)
- (names Runner DayTemplate Day01 Day01_18 Day02_18 Day03_18 Day02 Day03)
+  Day03
+  Day04)
+ (names
+  Runner
+  DayTemplate
+  Day01
+  Day01_18
+  Day02_18
+  Day03_18
+  Day02
+  Day03
+  Day04)
  (preprocess
   (pps ppx_jane))
  (libraries advent intcode core core_unix iter))
