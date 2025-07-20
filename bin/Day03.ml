@@ -1,7 +1,5 @@
 open Core
 open Advent
-open Bigarray
-open Iter
 
 type dir =
   | Up
@@ -9,22 +7,7 @@ type dir =
   | Left
   | Right
 
-let dim = 50000
-let cent = dim / 2
-let make_layout = Array2.init Bigarray.int8_unsigned c_layout dim dim (fun _y _x -> 0)
-let crossings : (int * int) option list ref = ref []
-
-let print_pair (p : dir * int) : unit =
-  let dir, len = p in
-  let d =
-    match dir with
-    | Up -> 'U'
-    | Down -> 'D'
-    | Left -> 'L'
-    | Right -> 'R'
-  in
-  printf "%c%i " d len
-;;
+module Cordmap = Map.Make (Pos)
 
 let interp (paths : string list) : (dir * int) list =
   List.map paths ~f:(fun s ->
@@ -43,9 +26,9 @@ let interp (paths : string list) : (dir * int) list =
 let map_one_run
       (pos : int * int)
       ((dir, len) : dir * int)
-      (map : (int, int8_unsigned_elt, c_layout) Array2.t)
-      (sym : int)
-  : int * int
+      (curlen : int)
+      (map : int Cordmap.t ref)
+  : (int * int) * int
   =
   let v =
     match dir with
@@ -54,72 +37,52 @@ let map_one_run
     | Left -> -1, 0
     | Right -> 1, 0
   in
-  let rec aux (nlen : int) (npos : int * int) : int * int =
+  let rec aux (nlen : int) (npos : int * int) (curlen : int) : (int * int) * int =
     if nlen = 0
-    then npos
+    then npos, curlen
     else (
-      let x, y = add_tuples npos v in
-      if map.{x, y} = 0 || map.{x, y} = sym
-      then map.{x, y} <- sym
-      else (
-        crossings := Some (x, y) :: !crossings;
-        map.{x, y} <- 3);
-      aux (nlen - 1) (x, y))
+      let pos = add_tuples npos v in
+      if not (Map.mem !map pos) then map := Map.add_exn !map ~key:pos ~data:curlen;
+      aux (nlen - 1) pos (curlen + 1))
   in
   printf "";
-  aux len pos
+  aux len pos curlen
 ;;
 
-let map_wire
-      (paths : (dir * int) list)
-      (map : (int, int8_unsigned_elt, c_layout) Array2.t)
-      (sym : int)
-  : unit
-  =
-  let rec aux (pos : int * int) (paths : (dir * int) list) =
-    let npos = map_one_run pos (List.hd_exn paths) map sym in
+let map_wire (paths : (dir * int) list) (map : int Cordmap.t ref) : unit =
+  let rec aux (pos : int * int) (paths : (dir * int) list) (curlen : int) =
+    let npos, curlen = map_one_run pos (List.hd_exn paths) curlen map in
     if List.length paths = 1
     then ()
     else (
       let npaths = List.tl_exn paths in
-      aux npos npaths)
+      aux npos npaths curlen)
   in
-  aux (cent, cent) paths
+  aux (0, 0) paths 1
 ;;
 
 let () =
-  let lines = read_lines "./inputs/d03/bot.txt" in
+  let lines = read_lines "./inputs/d03/input.txt" in
+  let wire1_map : int Cordmap.t ref = ref Cordmap.empty in
+  let wire2_map : int Cordmap.t ref = ref Cordmap.empty in
   let wire1 = String.split_on_chars (List.nth_exn lines 0) ~on:[ ',' ] |> interp in
   let wire2 = String.split_on_chars (List.nth_exn lines 1) ~on:[ ',' ] |> interp in
-  let map = make_layout in
-  map_wire wire1 map 1;
-  map_wire wire2 map 2;
-  let cross1 =
-    List.filter_map !crossings ~f:(fun pos ->
-      match pos with
-      | None -> None
-      | Some pos -> Some (man_dist (cent, cent) pos))
+  map_wire wire1 wire1_map;
+  map_wire wire2 wire2_map;
+  let crossings =
+    Map.merge !wire1_map !wire2_map ~f:(fun ~key:_ -> function
+      | `Both (w1, w2) -> Some (w1, w2)
+      | _ -> None)
   in
-  print_int_list cross1;
   let res =
-    List.fold cross1 ~init:(List.hd_exn cross1) ~f:(fun acc x ->
-      if x < acc then x else acc)
+    Map.fold crossings ~init:Int.max_value ~f:(fun ~key:k ~data:_ acc ->
+      let dist = man_dist k (0, 0) in
+      if dist < acc then dist else acc)
   in
-  (* let res =
-    Iter.fold_left
-      (fun acc x -> if x = 3 then acc + 1 else acc)
-      0
-      (genarray_of_array2 map)
-  in *)
-  (* Iter.iteri
-    (fun i x -> if i.(0) = 0 then printf "\n%i" x else printf "%i" x)
-    (genarray_of_array2 map); *)
-  (* Iter.iteri
-    (fun i w ->
-       let x = i.(0) in
-       let y = i.(1) in
-       if w = 3 then printf "\ndist:%i;%i,%i\n" (man_dist (25000, 25000) (x, y)) x y)
-    (genarray_of_array2 map); *)
-  let res2 = 1 in
+  let res2 =
+    Map.fold crossings ~init:Int.max_value ~f:(fun ~key:_ ~data:(d1, d2) acc ->
+      let dist = d1 + d2 in
+      if dist < acc then dist else acc)
+  in
   Printf.printf "\nPart 1: %i\nPart 2: %i\n" res res2
 ;;
