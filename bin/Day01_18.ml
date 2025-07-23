@@ -19,12 +19,7 @@ let dupeHash (nums : int list) : int =
 ;;
 
 let () =
-  let lines =
-    read_lines "./inputs/2018/d01/input.txt"
-    |> List.map ~f:(fun s ->
-      let n = String.sub s 1 (String.length s - 1) in
-      if Char.equal s.[0] '-' then int_of_string n * -1 else int_of_string n)
-  in
+  let lines = read_lines "./inputs/2018/d01/input.txt" |> List.map ~f:int_of_string in
   let res = List.fold lines ~init:0 ~f:( + ) in
   let res2 = dupeHash lines in
   Printf.printf "\nPart 1: %i\nPart 2: %i\n" res res2
