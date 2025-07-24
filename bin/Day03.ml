@@ -19,7 +19,7 @@ let interp (paths : string list) : (dir * int) list =
       | 'R' -> Right
       | _ -> raise (Invalid_argument "bad string")
     in
-    let len = String.sub s 1 (String.length s - 1) |> int_of_string in
+    let len = String.sub s ~pos:1 ~len:(String.length s - 1) |> int_of_string in
     dir, len)
 ;;
 
