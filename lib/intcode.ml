@@ -1,4 +1,5 @@
 open Core
+open Advent
 
 module Intcode = struct
   type memory = int array
@@ -17,7 +18,7 @@ module Intcode = struct
 
   type status =
     | Running of int
-    | Halted of memory
+    | Halted of (memory * int)
     | Error of string
 
   type mode =
@@ -66,16 +67,23 @@ module Intcode = struct
     | Immediate -> addr
   ;;
 
-  let input = ref 0
+  let input = ref []
+  let last_output = ref 0
 
   let get_input x =
     Printf.printf "\nGetting Input %i" x;
     x
   ;;
 
-  let set_input x = input := x
+  let set_input (x : int) =
+    input := x :: !input;
+    print_int_list !input
+  ;;
+
+  let set_input_l (x : int list) = input := x
 
   let send_output (out : int) (inst_pt : int) : unit =
+    last_output := out;
     if not (out = 0) then Printf.printf "\nOutput:%i @%i " out inst_pt
   ;;
 
@@ -100,7 +108,8 @@ module Intcode = struct
       Running (inst_pt + 4)
     | Input ->
       let dest = mem.(inst_pt + 1) in
-      mem.(dest) <- get_input !input;
+      mem.(dest) <- get_input (List.hd_exn !input);
+      input := List.tl_exn !input;
       Running (inst_pt + 2)
     | Output ->
       let param1 = mem.(inst_pt + 1) in
@@ -135,7 +144,7 @@ module Intcode = struct
       let val2 = read mem (List.nth_exn modes 1) param2 in
       if val1 = val2 then mem.(dest) <- 1 else mem.(dest) <- 0;
       Running (inst_pt + 4)
-    | Halt -> Halted mem
+    | Halt -> Halted (mem, !last_output)
     | Invalid -> Error "Invalid opcode"
   ;;
 
@@ -169,7 +178,7 @@ module Intcode = struct
       let verb = x mod 100 in
       let nmem = initialize mem noun verb in
       match run_cycle nmem with
-      | Halted rmem when rmem.(0) = goal -> result := Some (noun, verb)
+      | Halted (rmem, _) when rmem.(0) = goal -> result := Some (noun, verb)
       | _ -> ()
     done;
     !result

@@ -13,7 +13,7 @@ let () =
   let pt1_mem = Intcode.initialize mem 12 2 in
   let res =
     match Intcode.run_cycle pt1_mem with
-    | Halted x -> x.(0)
+    | Halted (x, _) -> x.(0)
     | _ -> 0
   in
   let res2 =

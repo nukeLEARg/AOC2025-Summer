@@ -189,3 +189,11 @@ let repeat_helper_fi f (i : int) (increment : int) (count : int) =
 
 let add_tuples (a, b) (c, d) = a + c, b + d
 let man_dist (a, b) (c, d) = abs (a - c) + abs (b - d)
+
+let permutations lst =
+  let rec aux x = function
+    | [] -> [ [ x ] ]
+    | hd :: tl as l -> (x :: l) :: List.map (aux x tl) ~f:(fun t -> hd :: t)
+  in
+  List.fold lst ~init:[ [] ] ~f:(fun acc x -> List.bind acc ~f:(aux x))
+;;

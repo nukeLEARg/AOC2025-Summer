@@ -9,7 +9,7 @@
  (name intcode)
  (preprocess
   (pps ppx_jane))
- (libraries core)
+ (libraries core advent)
  (modules Intcode))
 
 (library

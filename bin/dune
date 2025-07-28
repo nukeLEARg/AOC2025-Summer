@@ -1,6 +1,6 @@
 (executables
- (public_names Runner DayTemplate Day01 Day02 Day03 Day04 Day05 Day06)
- (names Runner DayTemplate Day01 Day02 Day03 Day04 Day05 Day06)
+ (public_names Runner DayTemplate Day01 Day02 Day03 Day04 Day05 Day06 Day07)
+ (names Runner DayTemplate Day01 Day02 Day03 Day04 Day05 Day06 Day07)
  (preprocess
   (pps ppx_jane))
  (libraries advent intcode core core_unix iter))
