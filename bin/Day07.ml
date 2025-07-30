@@ -13,8 +13,8 @@ let run_amp_chain (phases : int list) (omem : int array) : int * int list =
     else (
       let phase = List.nth_exn phases i in
       let state = Intcode.create_state omem in
-      let state = Intcode.add_input state phase in
-      let state = Intcode.add_input state pout in
+      let state = Intcode.add_input phase state in
+      let state = Intcode.add_input pout state in
       let state = Intcode.full_cycle state in
       match state.last_output with
       | Some nout -> aux (i + 1) nout
@@ -28,7 +28,7 @@ let run_feedback_chain (phases : int list) (omem : int array) : int =
     Array.init 5 ~f:(fun i ->
       let state = Intcode.create_state omem in
       let phase = List.nth_exn phases i in
-      Intcode.add_input state phase)
+      Intcode.add_input phase state)
   in
   let last_output_from_e = ref 0 in
   let current_signal = ref 0 in
@@ -39,7 +39,7 @@ let run_feedback_chain (phases : int list) (omem : int array) : int =
       if not state.halted
       then (
         any_running := true;
-        states.(amp) <- Intcode.add_input state !current_signal;
+        states.(amp) <- Intcode.add_input !current_signal state;
         match Intcode.run_until_output_or_halt states.(amp) with
         | Some output ->
           current_signal := output;
@@ -53,13 +53,7 @@ let run_feedback_chain (phases : int list) (omem : int array) : int =
 ;;
 
 let () =
-  let mem =
-    read_lines "./inputs/d07/input.txt"
-    |> List.hd_exn
-    |> String.split_on_chars ~on:[ ',' ]
-    |> List.map ~f:int_of_string
-    |> List.to_array
-  in
+  let mem = read_lines "./inputs/d07/input.txt" |> List.hd_exn |> Intcode.mem_of_string in
   let pt1_results =
     List.map all_amp_settings_pt1 ~f:(fun perm -> run_amp_chain perm mem)
   in

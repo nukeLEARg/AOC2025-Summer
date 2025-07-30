@@ -1,4 +1,5 @@
 open Core
+open Core.Poly
 
 module Intcode = struct
   type memory = int array
@@ -12,19 +13,23 @@ module Intcode = struct
     | JumpFalse
     | LessThan
     | Equal
+    | AdjustRelativeBase
     | Halt
     | Invalid
 
   type mode =
     | Position
     | Immediate
+    | Relative
 
   type computer_state =
-    { memory : memory
+    { mutable memory : memory
     ; mutable inst_pt : int
     ; mutable input_queue : int list
     ; mutable halted : bool
     ; mutable last_output : int option
+    ; mutable relative_base : int
+    ; mutable output_buffer : int list
     }
 
   type step_result =
@@ -43,6 +48,7 @@ module Intcode = struct
     | 6 -> JumpFalse
     | 7 -> LessThan
     | 8 -> Equal
+    | 9 -> AdjustRelativeBase
     | 99 -> Halt
     | _ -> Invalid
   ;;
@@ -53,7 +59,7 @@ module Intcode = struct
       match op with
       | Add | Multiply | LessThan | Equal -> 3
       | JumpFalse | JumpTrue -> 2
-      | Input | Output -> 1
+      | Input | Output | AdjustRelativeBase -> 1
       | Halt | Invalid -> 0
     in
     let rec aux n remaining acc =
@@ -63,35 +69,76 @@ module Intcode = struct
         let mode =
           match remaining / Int.pow 10 n mod 10 with
           | 1 -> Immediate
-          | _ -> Position
+          | 2 -> Relative
+          | 0 -> Position
+          | _ -> failwith "Unknown mode"
         in
         aux (n + 1) remaining (mode :: acc))
     in
     op, aux 0 (instr / 100) []
   ;;
 
-  let read (mem : memory) (mode : mode) (addr : int) =
-    match mode with
-    | Position -> mem.(addr)
-    | Immediate -> addr
+  let mem_expander (state : computer_state) (addr : int) : unit =
+    if addr >= Array.length state.memory
+    then (
+      let new_size = max (addr + 1) (Array.length state.memory * 2) in
+      let new_memory = Array.create ~len:new_size 0 in
+      Array.blit
+        ~src:state.memory
+        ~dst:new_memory
+        ~src_pos:0
+        ~dst_pos:0
+        ~len:(Array.length state.memory);
+      state.memory <- new_memory)
   ;;
 
-  let create_state mem =
+  let read (state : computer_state) (mode : mode) (addr : int) : int =
+    if mode = Immediate
+    then addr
+    else (
+      let rel = state.relative_base in
+      let effective_addr =
+        match mode with
+        | Position -> addr
+        | Immediate -> failwith "Cannot read in immediate mode"
+        | Relative -> addr + rel
+      in
+      if effective_addr < 0 then failwith "Negative memory address";
+      mem_expander state effective_addr;
+      state.memory.(effective_addr))
+  ;;
+
+  let write (state : computer_state) (mode : mode) (addr : int) (value : int) : unit =
+    let rel = state.relative_base in
+    let effective_addr =
+      match mode with
+      | Position -> addr
+      | Immediate -> failwith "Cannot write in immediate mode"
+      | Relative -> addr + rel
+    in
+    if effective_addr < 0 then failwith "Negative memory address";
+    mem_expander state effective_addr;
+    state.memory.(effective_addr) <- value
+  ;;
+
+  let create_state (mem : memory) : computer_state =
     { memory = Array.copy mem
     ; inst_pt = 0
     ; input_queue = []
     ; halted = false
     ; last_output = None
+    ; relative_base = 0
+    ; output_buffer = []
     }
   ;;
 
-  let add_input (state : computer_state) (input_val : int) =
+  let add_input (input_val : int) (state : computer_state) =
     state.input_queue <- state.input_queue @ [ input_val ];
     state
   ;;
 
-  let send_output (out : int) : unit =
-    if not (out = 0) then Printf.printf "\nOutput: %i" out
+  let send_output_to_buffer (out : int) (state : computer_state) : unit =
+    state.output_buffer <- state.output_buffer @ [ out ]
   ;;
 
   let execute_step (state : computer_state) : step_result =
@@ -108,18 +155,18 @@ module Intcode = struct
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
         let dest = state.memory.(state.inst_pt + 3) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
-        state.memory.(dest) <- val1 + val2;
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
+        write state (List.nth_exn modes 2) dest (val1 + val2);
         state.inst_pt <- state.inst_pt + 4;
         StepContinue
       | Multiply ->
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
         let dest = state.memory.(state.inst_pt + 3) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
-        state.memory.(dest) <- val1 * val2;
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
+        write state (List.nth_exn modes 2) dest (val1 * val2);
         state.inst_pt <- state.inst_pt + 4;
         StepContinue
       | Input ->
@@ -127,48 +174,54 @@ module Intcode = struct
          | [] -> StepNeedInput
          | hd :: tl ->
            let dest = state.memory.(state.inst_pt + 1) in
-           state.memory.(dest) <- hd;
+           write state (List.nth_exn modes 0) dest hd;
            state.input_queue <- tl;
            state.inst_pt <- state.inst_pt + 2;
            StepContinue)
       | Output ->
         let param1 = state.memory.(state.inst_pt + 1) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val1 = read state (List.nth_exn modes 0) param1 in
         state.inst_pt <- state.inst_pt + 2;
         state.last_output <- Some val1;
-        send_output val1;
+        send_output_to_buffer val1 state;
         StepOutput val1
       | JumpTrue ->
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
         state.inst_pt <- (if val1 = 0 then state.inst_pt + 3 else val2);
         StepContinue
       | JumpFalse ->
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
         state.inst_pt <- (if val1 = 0 then val2 else state.inst_pt + 3);
         StepContinue
       | LessThan ->
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
         let dest = state.memory.(state.inst_pt + 3) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
-        state.memory.(dest) <- (if val1 < val2 then 1 else 0);
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
+        write state (List.nth_exn modes 2) dest (if val1 < val2 then 1 else 0);
         state.inst_pt <- state.inst_pt + 4;
         StepContinue
       | Equal ->
         let param1 = state.memory.(state.inst_pt + 1) in
         let param2 = state.memory.(state.inst_pt + 2) in
         let dest = state.memory.(state.inst_pt + 3) in
-        let val1 = read state.memory (List.nth_exn modes 0) param1 in
-        let val2 = read state.memory (List.nth_exn modes 1) param2 in
-        state.memory.(dest) <- (if val1 = val2 then 1 else 0);
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        let val2 = read state (List.nth_exn modes 1) param2 in
+        write state (List.nth_exn modes 2) dest (if val1 = val2 then 1 else 0);
         state.inst_pt <- state.inst_pt + 4;
+        StepContinue
+      | AdjustRelativeBase ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let val1 = read state (List.nth_exn modes 0) param1 in
+        state.relative_base <- state.relative_base + val1;
+        state.inst_pt <- state.inst_pt + 2;
         StepContinue
       | Halt ->
         state.halted <- true;
@@ -235,5 +288,9 @@ module Intcode = struct
       | _ -> ()
     done;
     !result
+  ;;
+
+  let mem_of_string (input : string) : int array =
+    String.split_on_chars input ~on:[ ',' ] |> List.map ~f:int_of_string |> List.to_array
   ;;
 end

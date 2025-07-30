@@ -3,13 +3,7 @@ open Advent
 open Intcode
 
 let () =
-  let mem =
-    read_lines "./inputs/d02/input.txt"
-    |> List.hd_exn
-    |> String.split_on_chars ~on:[ ',' ]
-    |> List.map ~f:int_of_string
-    |> List.to_array
-  in
+  let mem = read_lines "./inputs/d02/input.txt" |> List.hd_exn |> Intcode.mem_of_string in
   let pt1_mem = Intcode.initialize mem 12 2 in
   let pt1_state = Intcode.create_state pt1_mem in
   let res = (Intcode.full_cycle pt1_state).memory.(0) in
