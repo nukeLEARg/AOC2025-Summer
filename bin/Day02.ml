@@ -11,15 +11,13 @@ let () =
     |> List.to_array
   in
   let pt1_mem = Intcode.initialize mem 12 2 in
-  let res =
-    match Intcode.run_cycle pt1_mem with
-    | Halted (x, _) -> x.(0)
-    | _ -> 0
-  in
+  let pt1_state = Intcode.create_state pt1_mem in
+  let res = (Intcode.full_cycle pt1_state).memory.(0) in
+  let pt2_state = Intcode.create_state mem in
   let res2 =
-    match Intcode.find_inputs ~mem ~goal:19690720 with
+    match Intcode.find_inputs 19690720 pt2_state with
     | Some (noun, verb) -> (100 * noun) + verb
-    | None -> 0
+    | None -> failwith "No inputs found"
   in
   Printf.printf "\nPart 1: %i\nPart 2: %i\n" res res2
 ;;

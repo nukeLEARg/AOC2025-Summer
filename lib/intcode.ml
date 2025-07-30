@@ -1,5 +1,4 @@
 open Core
-open Advent
 
 module Intcode = struct
   type memory = int array
@@ -16,14 +15,24 @@ module Intcode = struct
     | Halt
     | Invalid
 
-  type status =
-    | Running of int
-    | Halted of (memory * int)
-    | Error of string
-
   type mode =
     | Position
     | Immediate
+
+  type computer_state =
+    { memory : memory
+    ; mutable inst_pt : int
+    ; mutable input_queue : int list
+    ; mutable halted : bool
+    ; mutable last_output : int option
+    }
+
+  type step_result =
+    | StepOutput of int
+    | StepHalt
+    | StepNeedInput
+    | StepContinue
+    | StepError
 
   let decode_op = function
     | 1 -> Add
@@ -61,124 +70,168 @@ module Intcode = struct
     op, aux 0 (instr / 100) []
   ;;
 
-  let read mem mode addr =
+  let read (mem : memory) (mode : mode) (addr : int) =
     match mode with
     | Position -> mem.(addr)
     | Immediate -> addr
   ;;
 
-  let input = ref []
-  let last_output = ref 0
-
-  let get_input x =
-    Printf.printf "\nGetting Input %i" x;
-    x
+  let create_state mem =
+    { memory = Array.copy mem
+    ; inst_pt = 0
+    ; input_queue = []
+    ; halted = false
+    ; last_output = None
+    }
   ;;
 
-  let set_input (x : int) =
-    input := x :: !input;
-    print_int_list !input
+  let add_input (state : computer_state) (input_val : int) =
+    state.input_queue <- state.input_queue @ [ input_val ];
+    state
   ;;
 
-  let set_input_l (x : int list) = input := x
-
-  let send_output (out : int) (inst_pt : int) : unit =
-    last_output := out;
-    if not (out = 0) then Printf.printf "\nOutput:%i @%i " out inst_pt
+  let send_output (out : int) : unit =
+    if not (out = 0) then Printf.printf "\nOutput: %i" out
   ;;
 
-  let execute_op mem inst_pt =
-    let op, modes = decode_instr mem.(inst_pt) in
-    match op with
-    | Add ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let dest = mem.(inst_pt + 3) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      mem.(dest) <- val1 + val2;
-      Running (inst_pt + 4)
-    | Multiply ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let dest = mem.(inst_pt + 3) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      mem.(dest) <- val1 * val2;
-      Running (inst_pt + 4)
-    | Input ->
-      let dest = mem.(inst_pt + 1) in
-      mem.(dest) <- get_input (List.hd_exn !input);
-      input := List.tl_exn !input;
-      Running (inst_pt + 2)
-    | Output ->
-      let param1 = mem.(inst_pt + 1) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      send_output val1 inst_pt;
-      Running (inst_pt + 2)
-    | JumpTrue ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      if val1 = 0 then Running (inst_pt + 3) else Running val2
-    | JumpFalse ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      if val1 = 0 then Running val2 else Running (inst_pt + 3)
-    | LessThan ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let dest = mem.(inst_pt + 3) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      if val1 < val2 then mem.(dest) <- 1 else mem.(dest) <- 0;
-      Running (inst_pt + 4)
-    | Equal ->
-      let param1 = mem.(inst_pt + 1) in
-      let param2 = mem.(inst_pt + 2) in
-      let dest = mem.(inst_pt + 3) in
-      let val1 = read mem (List.nth_exn modes 0) param1 in
-      let val2 = read mem (List.nth_exn modes 1) param2 in
-      if val1 = val2 then mem.(dest) <- 1 else mem.(dest) <- 0;
-      Running (inst_pt + 4)
-    | Halt -> Halted (mem, !last_output)
-    | Invalid -> Error "Invalid opcode"
+  let execute_step (state : computer_state) : step_result =
+    if state.halted
+    then StepHalt
+    else if state.inst_pt >= Array.length state.memory
+    then (
+      state.halted <- true;
+      StepHalt)
+    else (
+      let op, modes = decode_instr state.memory.(state.inst_pt) in
+      match op with
+      | Add ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let dest = state.memory.(state.inst_pt + 3) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.memory.(dest) <- val1 + val2;
+        state.inst_pt <- state.inst_pt + 4;
+        StepContinue
+      | Multiply ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let dest = state.memory.(state.inst_pt + 3) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.memory.(dest) <- val1 * val2;
+        state.inst_pt <- state.inst_pt + 4;
+        StepContinue
+      | Input ->
+        (match state.input_queue with
+         | [] -> StepNeedInput
+         | hd :: tl ->
+           let dest = state.memory.(state.inst_pt + 1) in
+           state.memory.(dest) <- hd;
+           state.input_queue <- tl;
+           state.inst_pt <- state.inst_pt + 2;
+           StepContinue)
+      | Output ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        state.inst_pt <- state.inst_pt + 2;
+        state.last_output <- Some val1;
+        send_output val1;
+        StepOutput val1
+      | JumpTrue ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.inst_pt <- (if val1 = 0 then state.inst_pt + 3 else val2);
+        StepContinue
+      | JumpFalse ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.inst_pt <- (if val1 = 0 then val2 else state.inst_pt + 3);
+        StepContinue
+      | LessThan ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let dest = state.memory.(state.inst_pt + 3) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.memory.(dest) <- (if val1 < val2 then 1 else 0);
+        state.inst_pt <- state.inst_pt + 4;
+        StepContinue
+      | Equal ->
+        let param1 = state.memory.(state.inst_pt + 1) in
+        let param2 = state.memory.(state.inst_pt + 2) in
+        let dest = state.memory.(state.inst_pt + 3) in
+        let val1 = read state.memory (List.nth_exn modes 0) param1 in
+        let val2 = read state.memory (List.nth_exn modes 1) param2 in
+        state.memory.(dest) <- (if val1 = val2 then 1 else 0);
+        state.inst_pt <- state.inst_pt + 4;
+        StepContinue
+      | Halt ->
+        state.halted <- true;
+        StepHalt
+      | Invalid -> StepError)
   ;;
 
-  let run_cycle (mem : memory) : status =
-    let rec aux inst_pt =
-      if inst_pt >= Array.length mem
-      then Error "Instruction pointer out of bounds"
+  let full_cycle (state : computer_state) : computer_state =
+    let rec aux () : computer_state =
+      if state.inst_pt >= Array.length state.memory
+      then failwith "Instruction pointer out of bounds"
       else (
-        match execute_op mem inst_pt with
-        | Running next_pt ->
-          if next_pt < 0 || next_pt >= Array.length mem
-          then Error "Instruction pointer jumped out of bounds"
-          else aux next_pt
-        | Halted mem -> Halted mem
-        | Error e -> Error e)
+        match execute_step state with
+        | StepContinue | StepOutput _ -> aux ()
+        | StepHalt -> state
+        | StepError -> failwith "An error occurred during execution"
+        | StepNeedInput -> failwith "Computer needs input but none provided")
     in
-    aux 0
+    aux ()
   ;;
 
-  let initialize mem noun verb =
+  let verify_cycle (state : computer_state) : memory option =
+    let rec aux () : memory option =
+      if state.inst_pt >= Array.length state.memory
+      then failwith "Instruction pointer out of bounds"
+      else (
+        match execute_step state with
+        | StepContinue | StepOutput _ -> aux ()
+        | StepHalt -> Some state.memory
+        | StepError -> None
+        | StepNeedInput -> failwith "Computer needs input but none provided")
+    in
+    aux ()
+  ;;
+
+  let run_until_output_or_halt (state : computer_state) : int option =
+    let rec aux () : int option =
+      match execute_step state with
+      | StepOutput output -> Some output
+      | StepHalt -> None
+      | StepNeedInput -> failwith "Computer needs input but none provided"
+      | StepError -> failwith "An error occurred during execution"
+      | StepContinue -> aux ()
+    in
+    aux ()
+  ;;
+
+  let initialize (mem : memory) (noun : int) (verb : int) : int array =
     let mem' = Array.copy mem in
     mem'.(1) <- noun;
     mem'.(2) <- verb;
     mem'
   ;;
 
-  let find_inputs ~mem ~goal =
+  let find_inputs (goal : int) (state : computer_state) : (int * int) option =
     let result = ref None in
     for x = 0 to 9999 do
       let noun = x / 100 in
       let verb = x mod 100 in
-      let nmem = initialize mem noun verb in
-      match run_cycle nmem with
-      | Halted (rmem, _) when rmem.(0) = goal -> result := Some (noun, verb)
+      let test_mem = initialize state.memory noun verb in
+      let test_state = create_state test_mem in
+      match verify_cycle test_state with
+      | Some rmem when rmem.(0) = goal -> result := Some (noun, verb)
       | _ -> ()
     done;
     !result
