@@ -33,9 +33,7 @@ let dayrunner (d : int) =
 let () =
   printf "Enter the number of days to execute: %!";
   let input = In_channel.input_line_exn In_channel.stdin in
-  match Int.of_string input with
-  | num_days ->
-    let _ = printf "Starting Execution of %d Days\n%!" num_days in
-    time_execution_t (fun () -> dayrunner num_days)
-  | exception _ -> printf "Error: Please enter a valid integer\n"
+  let num_days = Int.of_string input in
+  let _ = printf "Starting Execution of %d Days\n%!" num_days in
+  time_execution_t (fun () -> dayrunner num_days)
 ;;
