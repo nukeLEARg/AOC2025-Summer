@@ -197,3 +197,13 @@ let permutations lst =
   in
   List.fold lst ~init:[ [] ] ~f:(fun acc x -> List.bind acc ~f:(aux x))
 ;;
+
+let rec gcd a b = if b = 0 then a else gcd b (a mod b)
+
+let reduce_vector ((dx, dy) : int * int) : int * int =
+  if dx = 0 && dy = 0
+  then 0, 0
+  else (
+    let g = gcd (abs dx) (abs dy) in
+    dx / g, dy / g)
+;;
