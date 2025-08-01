@@ -37,7 +37,12 @@ module Intcode = struct
     | StepHalt
     | StepNeedInput
     | StepContinue
-    | StepError
+    | StepError of string
+
+  type paused_state =
+    | PausedOutput of int
+    | PausedInput
+    | PausedHalt
 
   let decode_op = function
     | 1 -> Add
@@ -226,7 +231,7 @@ module Intcode = struct
       | Halt ->
         state.halted <- true;
         StepHalt
-      | Invalid -> StepError)
+      | Invalid -> StepError "Invalid opcode encountered")
   ;;
 
   let full_cycle (state : computer_state) : computer_state =
@@ -237,7 +242,7 @@ module Intcode = struct
         match execute_step state with
         | StepContinue | StepOutput _ -> aux ()
         | StepHalt -> state
-        | StepError -> failwith "An error occurred during execution"
+        | StepError e -> failwith e
         | StepNeedInput -> failwith "Computer needs input but none provided")
     in
     aux ()
@@ -251,19 +256,19 @@ module Intcode = struct
         match execute_step state with
         | StepContinue | StepOutput _ -> aux ()
         | StepHalt -> Some state.memory
-        | StepError -> None
+        | StepError _ -> None
         | StepNeedInput -> failwith "Computer needs input but none provided")
     in
     aux ()
   ;;
 
-  let run_until_output_or_halt (state : computer_state) : int option =
-    let rec aux () : int option =
+  let run_to_pause_state (state : computer_state) : paused_state =
+    let rec aux () : paused_state =
       match execute_step state with
-      | StepOutput output -> Some output
-      | StepHalt -> None
-      | StepNeedInput -> failwith "Computer needs input but none provided"
-      | StepError -> failwith "An error occurred during execution"
+      | StepOutput output -> PausedOutput output
+      | StepHalt -> PausedHalt
+      | StepNeedInput -> PausedInput
+      | StepError e -> failwith e
       | StepContinue -> aux ()
     in
     aux ()

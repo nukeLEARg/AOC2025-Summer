@@ -40,11 +40,11 @@ let run_feedback_chain (phases : int list) (omem : int array) : int =
       then (
         any_running := true;
         states.(amp) <- Intcode.add_input !current_signal state;
-        match Intcode.run_until_output_or_halt states.(amp) with
-        | Some output ->
+        match Intcode.run_to_pause_state states.(amp) with
+        | PausedOutput output ->
           current_signal := output;
           if amp = 4 then last_output_from_e := output
-        | None -> ())
+        | _ -> ())
     done;
     if !any_running then run_loop ()
   in
