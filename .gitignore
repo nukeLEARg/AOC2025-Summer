@@ -12,7 +12,6 @@
 # ocamlbuild working directory
 _build/
 inputs/
-test/
 
 # ocamlbuild targets
 *.byte
