@@ -11,7 +11,8 @@
   Day07
   Day08
   Day09
-  Day10)
+  Day10
+  Day11)
  (names
   Runner
   DayTemplate
@@ -24,7 +25,8 @@
   Day07
   Day08
   Day09
-  Day10)
+  Day10
+  Day11)
  (preprocess
   (pps ppx_jane))
  (libraries advent intcode core core_unix iter))

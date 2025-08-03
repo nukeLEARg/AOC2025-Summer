@@ -207,3 +207,36 @@ let reduce_vector ((dx, dy) : int * int) : int * int =
     let g = gcd (abs dx) (abs dy) in
     dx / g, dy / g)
 ;;
+
+let int_to_bool (n : int) : bool =
+  if n = 0 then false else if n = 1 then true else failwith "Ur being stupid with bools"
+;;
+
+let bool_to_int (b : bool) : int = if b then 1 else 0
+
+let find_bounds map =
+  if Map.is_empty map
+  then 0, 0, 0, 0 (* min_x, max_x, min_y, max_y *)
+  else
+    Map.fold
+      map
+      ~init:(Int.max_value, Int.min_value, Int.max_value, Int.min_value)
+      ~f:(fun ~key:(x, y) ~data:_ (min_x, max_x, min_y, max_y) ->
+        min min_x x, max max_x x, min min_y y, max max_y y)
+;;
+
+let print_map map =
+  let min_x, max_x, min_y, max_y = find_bounds map in
+  for y = min_y to max_y do
+    for x = min_x to max_x do
+      let char : char =
+        match Map.find map (x, y) with
+        | Some b -> if b then '#' else ' '
+        | None -> ' '
+      in
+      Out_channel.output_char stdout char
+    done;
+    Out_channel.newline stdout
+  done;
+  Out_channel.newline stdout
+;;
