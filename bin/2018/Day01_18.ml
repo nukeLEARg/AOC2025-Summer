@@ -3,7 +3,7 @@ open Advent
 
 let dupeHash (nums : int list) : int =
   let pFreqs = Hashtbl.create (module Int) in
-  Hashtbl.set pFreqs 0 1;
+  Hashtbl.set pFreqs ~key:0 ~data:1;
   let rec aux (onums : int list) (nums : int list) (freq : int) : int =
     if List.is_empty nums
     then aux onums onums freq
@@ -12,7 +12,7 @@ let dupeHash (nums : int list) : int =
       if Hashtbl.mem pFreqs nFreq
       then nFreq
       else (
-        Hashtbl.set pFreqs nFreq 1;
+        Hashtbl.set pFreqs ~key:nFreq ~data:1;
         aux onums (List.tl_exn nums) nFreq))
   in
   aux nums nums 0

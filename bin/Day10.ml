@@ -9,7 +9,9 @@ let parse_map (lines : string list) : (int * int) list =
   |> List.rev
 ;;
 
-let group_asteroids_by_dir (sx, sy) (asteroids : (int * int) list) =
+let group_asteroids_by_dir (sx, sy) (asteroids : (int * int) list)
+  : (int * int) list Cordmap.t
+  =
   let grouped =
     List.fold asteroids ~init:Cordmap.empty ~f:(fun acc (ax, ay) ->
       if not (ax = sx && ay = sy)
