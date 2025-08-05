@@ -199,6 +199,8 @@ let permutations lst =
 ;;
 
 let rec gcd a b = if b = 0 then a else gcd b (a mod b)
+let lcm a b = a * b / gcd a b
+let lcm_list nums = List.fold nums ~init:1 ~f:lcm
 
 let reduce_vector ((dx, dy) : int * int) : int * int =
   if dx = 0 && dy = 0
